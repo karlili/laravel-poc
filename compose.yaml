@@ -27,6 +27,8 @@ x-app: &app
 services:
   app:
     <<: *app
+    environment:
+      COMPOSER_INSTALL_ON_START: "true"
     ports:
       - "${APP_PORT:-8000}:8080"
 

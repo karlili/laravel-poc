@@ -63,8 +63,8 @@ cp .env.example .env
 # 2. Build the image and start the stack (app, queue, scheduler, MySQL, Redis, Azurite, Mailpit).
 docker compose up -d --build
 
-# 3. Install PHP dependencies and generate the app key.
-docker compose exec app composer install
+# 3. Generate the app key. The app container runs `composer install` on every start;
+#    wait for it to finish first (`docker compose logs -f app`).
 docker compose exec app php artisan key:generate
 
 # 4. Create the tables and load demo data.

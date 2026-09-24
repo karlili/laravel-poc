@@ -36,6 +36,7 @@ USER root
 # Match www-data to the host user so files written by the container stay editable.
 RUN docker-php-serversideup-set-id www-data ${USER_ID}:${GROUP_ID} \
     && docker-php-serversideup-set-file-permissions --owner ${USER_ID}:${GROUP_ID} --service nginx
+COPY --chmod=755 docker/entrypoint.d/ /etc/entrypoint.d/
 USER www-data
 
 ############################################
