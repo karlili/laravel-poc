@@ -17,8 +17,6 @@ x-app: &app
   depends_on:
     mysql:
       condition: service_healthy
-    redis:
-      condition: service_started
     azurite:
       condition: service_started
     mailpit:
@@ -29,38 +27,21 @@ services:
     <<: *app
     environment:
       COMPOSER_INSTALL_ON_START: "true"
+      MIGRATE_ON_START: "true"
     ports:
       - "${APP_PORT:-8000}:8080"
-
-  queue:
-    <<: *app
-    command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3", "--sleep=1"]
-    restart: unless-stopped
-    stop_signal: SIGTERM
-    healthcheck:
-      test: ["CMD", "healthcheck-queue"]
-      start_period: 10s
-
-  scheduler:
-    <<: *app
-    command: ["php", "/var/www/html/artisan", "schedule:work"]
-    restart: unless-stopped
-    stop_signal: SIGTERM
-    healthcheck:
-      test: ["CMD", "healthcheck-schedule"]
-      start_period: 10s
 
   vite:
     image: node:22-bookworm-slim
     working_dir: /var/www/html
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    # npm ci + build, then the dev server; see the script for shutdown cleanup.
+    command: [ "sh", "docker/vite-dev.sh" ]
     environment:
       VITE_HMR_HOST: localhost
     volumes:
       - .:/var/www/html
     ports:
       - "${VITE_PORT:-5173}:5173"
-    profiles: ["vite"]
 
   mysql:
     image: mysql:8.4
@@ -74,20 +55,15 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-root}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-root}" ]
       interval: 5s
       timeout: 5s
       retries: 20
 
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis-data:/data
-
   # Azure Blob Storage emulator for attachments.
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
-    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--loose", "--skipApiVersionCheck"]
+    command: [ "azurite-blob", "--blobHost", "0.0.0.0", "--loose", "--skipApiVersionCheck" ]
     ports:
       - "${FORWARD_AZURITE_PORT:-10000}:10000"
     volumes:
@@ -100,5 +76,4 @@ services:
 
 volumes:
   mysql-data:
-  redis-data:
   azurite-data:
