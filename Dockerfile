@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 
-# One image for every process: the web app, the queue worker, the scheduler
-# and the migration job only differ by their start command.
+# One image for every process: the web app and the migration job only differ
+# by their start command.
 #
 #   docker build --target production -t laravel-crm .
-#   docker build --target development -t laravel-crm-dev .   (used by compose.yaml)
+#   docker build --target development -t laravel-crm-dev .   (used by docker-compose.yml)
 
 ARG PHP_VERSION=8.4
 ARG NODE_VERSION=22
@@ -25,7 +25,7 @@ ENV HEALTHCHECK_PATH=/up \
 USER www-data
 
 ############################################
-# Development: source code is bind-mounted by compose.yaml
+# Development: source code is bind-mounted by docker-compose.yml
 ############################################
 FROM base AS development
 

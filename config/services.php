@@ -35,14 +35,4 @@ return [
         ],
     ],
 
-    // Microsoft Entra ID single sign-on (single tenant).
-    'azure' => [
-        'enabled' => (bool) env('AUTH_MICROSOFT_ENABLED', false),
-        'client_id' => env('ENTRA_CLIENT_ID'),
-        'client_secret' => env('ENTRA_CLIENT_SECRET'),
-        'redirect' => env('ENTRA_REDIRECT_URI', '/auth/microsoft/callback'),
-        'tenant' => env('ENTRA_TENANT_ID'),
-        'proxy' => env('ENTRA_PROXY'),
-    ],
-
 ];

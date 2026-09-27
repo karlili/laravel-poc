@@ -22,7 +22,7 @@ export default defineConfig({
     ]),
     server: {
         cors: true,
-        // Set by compose.yaml so the browser reaches the dev server published on localhost.
+        // Set by docker-compose.yml so the browser reaches the dev server published on localhost.
         hmr: process.env.VITE_HMR_HOST ? { host: process.env.VITE_HMR_HOST } : undefined,
         watch: {
             ignored: [

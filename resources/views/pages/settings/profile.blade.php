@@ -71,11 +71,6 @@ new #[Title('Profile settings')] class extends Component {
     #[Computed]
     public function showDeleteUser(): bool
     {
-        // Deleting the account needs the current password, which Microsoft sign-in users do not have.
-        if (! Auth::user()->usesLocalPassword()) {
-            return false;
-        }
-
         return ! Auth::user() instanceof MustVerifyEmail
             || (Auth::user() instanceof MustVerifyEmail && Auth::user()->hasVerifiedEmail());
     }

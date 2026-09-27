@@ -7,29 +7,12 @@ return [
     | Default Role
     |--------------------------------------------------------------------------
     |
-    | The role given to users who register locally or who sign in with
-    | Microsoft for the first time. Admins can change it afterwards.
+    | The role given to users when they register. Admins can change it
+    | afterwards.
     |
     */
 
     'default_role' => env('CRM_DEFAULT_ROLE', 'viewer'),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Single Sign-On
-    |--------------------------------------------------------------------------
-    |
-    | "link_by_email" lets a first-time Microsoft sign-in attach to an existing
-    | local account with the same email address. "enforce_for_linked_users"
-    | stops linked accounts from using a local password, so disabling a user
-    | in Entra ID also locks them out of the CRM.
-    |
-    */
-
-    'sso' => [
-        'link_by_email' => (bool) env('SSO_LINK_BY_EMAIL', true),
-        'enforce_for_linked_users' => (bool) env('SSO_ENFORCE_FOR_LINKED_USERS', true),
-    ],
 
     /*
     |--------------------------------------------------------------------------

@@ -20,5 +20,5 @@ tests
 infra
 docs
 .phpunit.cache
-compose.yaml
+docker-compose.yml
 Dockerfile

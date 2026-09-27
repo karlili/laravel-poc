@@ -11,12 +11,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use SocialiteProviders\Azure\Provider as AzureProvider;
-use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,7 +32,6 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureAuthorization();
-        $this->configureSocialite();
     }
 
     /**
@@ -44,16 +40,6 @@ class AppServiceProvider extends ServiceProvider
     protected function configureAuthorization(): void
     {
         Gate::before(fn (User $user) => $user->hasRole(Role::Admin->value) ? true : null);
-    }
-
-    /**
-     * Register the Microsoft Entra ID (Azure) Socialite driver.
-     */
-    protected function configureSocialite(): void
-    {
-        Event::listen(function (SocialiteWasCalled $event) {
-            $event->extendSocialite('azure', AzureProvider::class);
-        });
     }
 
     /**

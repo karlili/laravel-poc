@@ -22,21 +22,8 @@ output "web_app_name" {
   value = azurerm_container_app.web.name
 }
 
-output "worker_app_name" {
-  value = azurerm_container_app.worker.name
-}
-
-output "scheduler_job_name" {
-  value = azurerm_container_app_job.scheduler.name
-}
-
 output "migrate_job_name" {
   value = azurerm_container_app_job.migrate.name
-}
-
-output "entra_redirect_uri" {
-  description = "Add this redirect URI to the Entra app registration."
-  value       = "${local.app_url}/auth/microsoft/callback"
 }
 
 output "mysql_fqdn" {

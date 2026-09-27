@@ -74,11 +74,6 @@ variable "web_max_replicas" {
   default = 3
 }
 
-variable "worker_replicas" {
-  type    = number
-  default = 1
-}
-
 variable "web_cpu" {
   type    = number
   default = 0.5
@@ -87,33 +82,6 @@ variable "web_cpu" {
 variable "web_memory" {
   type    = string
   default = "1Gi"
-}
-
-# --- Microsoft Entra ID single sign-on --------------------------------------
-
-variable "entra_sso_enabled" {
-  description = "Show 'Sign in with Microsoft'. Needs entra_client_id and entra_client_secret."
-  type        = bool
-  default     = false
-}
-
-variable "entra_tenant_id" {
-  description = "Tenant allowed to sign in. Defaults to the tenant Terraform runs in."
-  type        = string
-  default     = ""
-}
-
-variable "entra_client_id" {
-  description = "Application (client) ID of the CRM app registration."
-  type        = string
-  default     = ""
-}
-
-variable "entra_client_secret" {
-  description = "Client secret of the CRM app registration. Pass via TF_VAR_entra_client_secret."
-  type        = string
-  default     = ""
-  sensitive   = true
 }
 
 # --- Database ----------------------------------------------------------------

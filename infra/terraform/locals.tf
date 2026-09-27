@@ -8,8 +8,6 @@ locals {
   app_url      = var.app_url != "" ? var.app_url : "https://${local.web_app_name}.${azurerm_container_app_environment.main.default_domain}"
   image        = "${azurerm_container_registry.main.login_server}/${var.project}:${var.image_tag}"
 
-  entra_tenant_id = var.entra_tenant_id != "" ? var.entra_tenant_id : data.azurerm_client_config.current.tenant_id
-
   tags = merge({
     project     = var.project
     environment = var.environment

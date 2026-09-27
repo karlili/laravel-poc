@@ -36,8 +36,6 @@ jobs:
       ACR_NAME: ${{ vars.ACR_NAME }}
       IMAGE: ${{ vars.IMAGE_REPOSITORY }}:${{ github.sha }}
       WEB_APP: ${{ vars.WEB_APP_NAME }}
-      WORKER_APP: ${{ vars.WORKER_APP_NAME }}
-      SCHEDULER_JOB: ${{ vars.SCHEDULER_JOB_NAME }}
       MIGRATE_JOB: ${{ vars.MIGRATE_JOB_NAME }}
 
     steps:
@@ -93,11 +91,9 @@ jobs:
           echo "::error::Migration job $execution did not finish within 15 minutes."
           exit 1
 
-      - name: Deploy web, worker and scheduler
+      - name: Deploy web
         run: |
           az containerapp update --name "$WEB_APP" --resource-group "$RESOURCE_GROUP" --image "$IMAGE" --output none
-          az containerapp update --name "$WORKER_APP" --resource-group "$RESOURCE_GROUP" --image "$IMAGE" --output none
-          az containerapp job update --name "$SCHEDULER_JOB" --resource-group "$RESOURCE_GROUP" --image "$IMAGE" --output none
 
       - name: Smoke test
         run: |

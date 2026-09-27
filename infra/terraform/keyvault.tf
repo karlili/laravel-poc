@@ -38,10 +38,9 @@ resource "random_password" "mysql" {
 
 locals {
   secrets = {
-    app-key             = "base64:${random_bytes.app_key.base64}"
-    db-password         = random_password.mysql.result
-    entra-client-secret = var.entra_client_secret != "" ? var.entra_client_secret : "not-set"
-    mail-password       = var.mail_password != "" ? var.mail_password : "not-set"
+    app-key       = "base64:${random_bytes.app_key.base64}"
+    db-password   = random_password.mysql.result
+    mail-password = var.mail_password != "" ? var.mail_password : "not-set"
   }
 }
 

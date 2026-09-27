@@ -72,7 +72,6 @@ new #[Title('Users')] class extends Component {
         <flux:table.columns>
             <flux:table.column>{{ __('Name') }}</flux:table.column>
             <flux:table.column>{{ __('Email') }}</flux:table.column>
-            <flux:table.column>{{ __('Sign-in') }}</flux:table.column>
             <flux:table.column>{{ __('Role') }}</flux:table.column>
         </flux:table.columns>
 
@@ -81,14 +80,6 @@ new #[Title('Users')] class extends Component {
                 <flux:table.row :key="$user->id">
                     <flux:table.cell variant="strong">{{ $user->name }}</flux:table.cell>
                     <flux:table.cell>{{ $user->email }}</flux:table.cell>
-                    <flux:table.cell>
-                        @if ($user->isLinkedToEntra())
-                            <flux:badge size="sm" color="blue">{{ __('Microsoft') }}</flux:badge>
-                        @endif
-                        @if ($user->usesLocalPassword())
-                            <flux:badge size="sm">{{ __('Password') }}</flux:badge>
-                        @endif
-                    </flux:table.cell>
                     <flux:table.cell>
                         <flux:select size="sm" class="max-w-40" wire:change="setRole({{ $user->id }}, $event.target.value)" :aria-label="__('Role for :name', ['name' => $user->name])">
                             @unless ($user->roles->isNotEmpty())

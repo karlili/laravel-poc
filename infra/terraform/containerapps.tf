@@ -13,7 +13,7 @@ resource "azurerm_container_app_environment" "main" {
 }
 
 locals {
-  # Settings shared by the web app, the queue worker and the jobs.
+  # Settings shared by the web app and the migrate job.
   app_env = {
     APP_NAME  = "Laravel CRM"
     APP_ENV   = "production"
@@ -31,7 +31,7 @@ locals {
     SESSION_DRIVER        = "database"
     SESSION_SECURE_COOKIE = "true"
     CACHE_STORE           = "database"
-    QUEUE_CONNECTION      = "database"
+    QUEUE_CONNECTION      = "sync"
 
     MEDIA_DISK                          = "azure"
     MEDIA_DOWNLOAD_STRATEGY             = "stream"
@@ -41,11 +41,7 @@ locals {
     AZURE_STORAGE_CREDENTIAL            = "managed_identity"
     AZURE_STORAGE_CLIENT_ID             = azurerm_user_assigned_identity.app.client_id
 
-    CRM_DEFAULT_ROLE       = var.default_role
-    AUTH_MICROSOFT_ENABLED = tostring(var.entra_sso_enabled)
-    ENTRA_TENANT_ID        = local.entra_tenant_id
-    ENTRA_CLIENT_ID        = var.entra_client_id
-    ENTRA_REDIRECT_URI     = "${local.app_url}/auth/microsoft/callback"
+    CRM_DEFAULT_ROLE = var.default_role
 
     MAIL_MAILER       = var.mail.mailer
     MAIL_HOST         = var.mail.host
@@ -56,10 +52,9 @@ locals {
 
   # Environment variable => Key Vault secret name.
   app_secret_env = {
-    APP_KEY             = "app-key"
-    DB_PASSWORD         = "db-password"
-    ENTRA_CLIENT_SECRET = "entra-client-secret"
-    MAIL_PASSWORD       = "mail-password"
+    APP_KEY       = "app-key"
+    DB_PASSWORD   = "db-password"
+    MAIL_PASSWORD = "mail-password"
   }
 
   artisan = ["php", "/var/www/html/artisan"]
@@ -168,151 +163,6 @@ resource "azurerm_container_app" "web" {
     azurerm_role_assignment.app_acr_pull,
     azurerm_role_assignment.app_kv_secrets_user,
     azurerm_role_assignment.app_blob_contributor,
-  ]
-}
-
-resource "azurerm_container_app" "worker" {
-  name                         = "ca-${local.name}-worker"
-  resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  revision_mode                = "Single"
-  workload_profile_name        = "Consumption"
-  tags                         = local.tags
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.app.id]
-  }
-
-  registry {
-    server   = azurerm_container_registry.main.login_server
-    identity = azurerm_user_assigned_identity.app.id
-  }
-
-  dynamic "secret" {
-    for_each = azurerm_key_vault_secret.app
-
-    content {
-      name                = secret.key
-      key_vault_secret_id = secret.value.versionless_id
-      identity            = azurerm_user_assigned_identity.app.id
-    }
-  }
-
-  template {
-    min_replicas = var.worker_replicas
-    max_replicas = var.worker_replicas
-
-    container {
-      name    = "worker"
-      image   = local.image
-      cpu     = 0.5
-      memory  = "1Gi"
-      command = concat(local.artisan, ["queue:work", "--tries=3", "--max-time=3600"])
-
-      dynamic "env" {
-        for_each = local.app_env
-
-        content {
-          name  = env.key
-          value = env.value
-        }
-      }
-
-      dynamic "env" {
-        for_each = local.app_secret_env
-
-        content {
-          name        = env.key
-          secret_name = env.value
-        }
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [template[0].container[0].image]
-  }
-
-  depends_on = [
-    azurerm_role_assignment.app_acr_pull,
-    azurerm_role_assignment.app_kv_secrets_user,
-    azurerm_role_assignment.app_blob_contributor,
-  ]
-}
-
-# Runs Laravel's scheduler every minute.
-resource "azurerm_container_app_job" "scheduler" {
-  name                         = "caj-${local.name}-scheduler"
-  resource_group_name          = azurerm_resource_group.main.name
-  location                     = azurerm_resource_group.main.location
-  container_app_environment_id = azurerm_container_app_environment.main.id
-  workload_profile_name        = "Consumption"
-  replica_timeout_in_seconds   = 600
-  replica_retry_limit          = 0
-  tags                         = local.tags
-
-  schedule_trigger_config {
-    cron_expression          = "* * * * *"
-    parallelism              = 1
-    replica_completion_count = 1
-  }
-
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.app.id]
-  }
-
-  registry {
-    server   = azurerm_container_registry.main.login_server
-    identity = azurerm_user_assigned_identity.app.id
-  }
-
-  dynamic "secret" {
-    for_each = azurerm_key_vault_secret.app
-
-    content {
-      name                = secret.key
-      key_vault_secret_id = secret.value.versionless_id
-      identity            = azurerm_user_assigned_identity.app.id
-    }
-  }
-
-  template {
-    container {
-      name    = "scheduler"
-      image   = local.image
-      cpu     = 0.25
-      memory  = "0.5Gi"
-      command = concat(local.artisan, ["schedule:run"])
-
-      dynamic "env" {
-        for_each = local.app_env
-
-        content {
-          name  = env.key
-          value = env.value
-        }
-      }
-
-      dynamic "env" {
-        for_each = local.app_secret_env
-
-        content {
-          name        = env.key
-          secret_name = env.value
-        }
-      }
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [template[0].container[0].image]
-  }
-
-  depends_on = [
-    azurerm_role_assignment.app_acr_pull,
-    azurerm_role_assignment.app_kv_secrets_user,
   ]
 }
 

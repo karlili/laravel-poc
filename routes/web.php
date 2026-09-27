@@ -1,16 +1,10 @@
 <?php
 
 use App\Enums\Permission;
-use App\Http\Controllers\Auth\MicrosoftController;
 use App\Http\Controllers\MediaDownloadController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
-
-Route::middleware(['guest', 'throttle:20,1'])->prefix('auth/microsoft')->name('auth.microsoft.')->group(function () {
-    Route::get('redirect', [MicrosoftController::class, 'redirect'])->name('redirect');
-    Route::get('callback', [MicrosoftController::class, 'callback'])->name('callback');
-});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');

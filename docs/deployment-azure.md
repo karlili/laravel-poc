@@ -4,11 +4,11 @@ Everything runs in one resource group per environment, `rg-crm-<env>`:
 
 | Resource | Purpose |
 |---|---|
-| Container Apps environment (in a VNet) | Runs the `web` app, the `worker` app, the `scheduler` job and the `migrate` job |
+| Container Apps environment (in a VNet) | Runs the `web` app and the `migrate` job |
 | Azure Container Registry (Basic) | Stores the app images. Pulls use the app's managed identity. |
 | Azure Database for MySQL Flexible Server 8.4 | Private VNet access only, with TLS and automated backups |
 | Storage account + private `media` container | Attachments. Account keys are off; access uses the managed identity. |
-| Key Vault (RBAC) | `APP_KEY`, the database password, the Entra client secret and the SMTP password |
+| Key Vault (RBAC) | `APP_KEY`, the database password and the SMTP password |
 | Log Analytics workspace | Container logs |
 | User-assigned managed identity | AcrPull, Storage Blob Data Contributor and Key Vault Secrets User |
 
@@ -17,7 +17,6 @@ The Terraform is in `infra/terraform`. It uses azurerm provider 5.x and Terrafor
 ## Prerequisites
 
 - Azure CLI (`az`), Terraform 1.9 or later, and access to the subscription. To create the role assignments, you need **Owner**, or **Contributor** plus **Role Based Access Control Administrator**.
-- An Entra app registration for SSO, if you want it (see [entra-setup.md](entra-setup.md)).
 
 ## 1. Create the Terraform state storage (once)
 
@@ -35,7 +34,6 @@ The container apps need an image in the registry before they can start. Create t
 ```bash
 cd infra/terraform
 export TF_VAR_subscription_id=<subscription-id>
-export TF_VAR_entra_client_secret=<secret>        # only if SSO is enabled
 
 terraform init -backend-config=environments/dev.backend.hcl
 terraform apply -var-file=environments/dev.tfvars -target=azurerm_container_registry.main
@@ -52,12 +50,12 @@ Then run the migrations and create the first admin:
 RG=$(terraform output -raw resource_group_name)
 az containerapp job start -g "$RG" -n "$(terraform output -raw migrate_job_name)"
 
-# After signing up (or signing in with Microsoft) at the app URL, make yourself admin:
+# After signing up at the app URL, make yourself admin:
 az containerapp exec -g "$RG" -n "$(terraform output -raw web_app_name)" --command \
   "php artisan tinker --execute=\"App\\Models\\User::where('email','you@example.com')->first()->syncRoles(['admin']);\""
 ```
 
-`terraform output app_url` gives the site address. `terraform output entra_redirect_uri` gives the redirect URI to add to the Entra app registration.
+`terraform output app_url` gives the site address.
 
 ## 3. Continuous deployment with GitHub Actions
 
@@ -100,10 +98,7 @@ Create the `dev` and `prod` environments under **Settings → Environments**. Ad
 | `ACR_NAME` | variable | `terraform output -raw acr_name` |
 | `IMAGE_REPOSITORY` | variable | `terraform output -raw image_repository` |
 | `WEB_APP_NAME` | variable | `terraform output -raw web_app_name` |
-| `WORKER_APP_NAME` | variable | `terraform output -raw worker_app_name` |
-| `SCHEDULER_JOB_NAME` | variable | `terraform output -raw scheduler_job_name` |
 | `MIGRATE_JOB_NAME` | variable | `terraform output -raw migrate_job_name` |
-| `ENTRA_CLIENT_SECRET` | secret | Entra app client secret (optional) |
 | `MAIL_PASSWORD` | secret | SMTP password (optional) |
 
 ### What the workflows do
@@ -112,17 +107,17 @@ Create the `dev` and `prod` environments under **Settings → Environments**. Ad
 |---|---|---|
 | `ci.yml` | pull requests and pushes to `main` | Pint, Larastan, frontend build, PHPUnit against MySQL 8.4, and a Docker build |
 | `terraform.yml` | changes under `infra/terraform`, or run manually | `fmt`, `validate` and `plan`. On `main` or a manual run, it also applies the saved plan, after environment approval if configured. |
-| `deploy.yml` | pushes to `main` (dev), or run manually (dev/prod) | 1. Build and push `crm:<sha>`. 2. Run the `migrate` job with the new image and wait for it. 3. Update the web app, worker and scheduler. 4. Smoke-test `/up`. |
+| `deploy.yml` | pushes to `main` (dev), or run manually (dev/prod) | 1. Build and push `crm:<sha>`. 2. Run the `migrate` job with the new image and wait for it. 3. Update the web app. 4. Smoke-test `/up`. |
 
 Terraform ignores the container image (`lifecycle.ignore_changes`), so infrastructure applies never roll back an app deploy.
 
 ## Operations
 
 - **Logs:** Log Analytics → `ContainerAppConsoleLogs_CL`, or run `az containerapp logs show -g <rg> -n <app> --follow`.
-- **Scaling:** `web_min_replicas`/`web_max_replicas` (HTTP concurrency rule) and `worker_replicas` in the tfvars.
+- **Scaling:** `web_min_replicas`/`web_max_replicas` (HTTP concurrency rule) in the tfvars.
 - **Backups:** MySQL automated backups (`mysql_backup_retention_days`, geo-redundant in prod). Blob versioning and 30-day soft delete protect attachments.
 - **Malware scanning:** set `enable_defender_for_storage = true` (on in prod) for Defender for Storage on-upload scanning.
-- **Custom domain:** add it to the web container app (managed certificate), then set `app_url` and update the Entra redirect URI.
+- **Custom domain:** add it to the web container app (managed certificate), then set `app_url`.
 
 ## Hardening follow-ups
 

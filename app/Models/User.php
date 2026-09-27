@@ -22,9 +22,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $name
  * @property string $email
  * @property Carbon|null $email_verified_at
- * @property string|null $password
- * @property string|null $azure_oid
- * @property string|null $azure_tenant_id
+ * @property string $password
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -70,26 +68,6 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function contacts(): HasMany
     {
         return $this->hasMany(Contact::class, 'owner_id');
-    }
-
-    /**
-     * Whether the account is linked to a Microsoft Entra ID identity.
-     */
-    public function isLinkedToEntra(): bool
-    {
-        return $this->azure_oid !== null;
-    }
-
-    /**
-     * Whether the user may sign in or manage security with a local password.
-     */
-    public function usesLocalPassword(): bool
-    {
-        if ($this->password === null) {
-            return false;
-        }
-
-        return ! ($this->isLinkedToEntra() && config('crm.sso.enforce_for_linked_users'));
     }
 
     /**

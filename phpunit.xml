@@ -30,7 +30,6 @@
         <env name="MEDIA_DISK" value="media"/>
         <env name="MEDIA_DOWNLOAD_STRATEGY" value="stream"/>
         <env name="LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK" value=""/>
-        <env name="AUTH_MICROSOFT_ENABLED" value="false"/>
         <env name="CRM_DEFAULT_ROLE" value="viewer"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

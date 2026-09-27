@@ -20,11 +20,7 @@ class ResetUserPassword implements ResetsUserPasswords
     {
         Validator::make($input, [
             'password' => $this->passwordRules(),
-        ])->after(function ($validator) use ($user) {
-            if ($user->isLinkedToEntra() && config('crm.sso.enforce_for_linked_users')) {
-                $validator->errors()->add('email', __('This account signs in with Microsoft. Reset your password with your organisation instead.'));
-            }
-        })->validate();
+        ])->validate();
 
         $user->forceFill([
             'password' => $input['password'],
