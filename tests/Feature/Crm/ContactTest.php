@@ -77,6 +77,24 @@ class ContactTest extends TestCase
         $this->actingAs($sales)->get(route('contacts.edit', $contact))->assertForbidden();
     }
 
+    public function test_sales_can_delete_their_own_contact_but_not_others(): void
+    {
+        $sales = $this->userWithRole(Role::Sales);
+        $own = Contact::factory()->for($sales, 'owner')->create();
+        $theirs = Contact::factory()->create();
+
+        Livewire::actingAs($sales)
+            ->test('pages::contacts.index')
+            ->call('confirmDelete', $own->id)
+            ->call('delete')
+            ->assertOk()
+            ->call('confirmDelete', $theirs->id)
+            ->assertForbidden();
+
+        $this->assertSoftDeleted($own);
+        $this->assertNotSoftDeleted($theirs);
+    }
+
     public function test_search_matches_company_name(): void
     {
         $viewer = $this->userWithRole(Role::Viewer);

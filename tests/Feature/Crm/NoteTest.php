@@ -58,17 +58,19 @@ class NoteTest extends TestCase
 
         Livewire::actingAs($otherSales)
             ->test('notes-thread', ['notable' => $company])
-            ->call('delete', $first->id)
+            ->call('confirmDelete', $first->id)
             ->assertForbidden();
 
         Livewire::actingAs($author)
             ->test('notes-thread', ['notable' => $company])
-            ->call('delete', $first->id)
+            ->call('confirmDelete', $first->id)
+            ->call('delete')
             ->assertOk();
 
         Livewire::actingAs($manager)
             ->test('notes-thread', ['notable' => $company])
-            ->call('delete', $second->id)
+            ->call('confirmDelete', $second->id)
+            ->call('delete')
             ->assertOk();
 
         $this->assertDatabaseCount('notes', 0);

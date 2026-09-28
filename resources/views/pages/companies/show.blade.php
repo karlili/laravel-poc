@@ -72,11 +72,11 @@ new class extends Component {
                 @endforelse
             </flux:card>
 
-            <livewire:notes-thread :notable="$company" />
+            <livewire:notes-thread lazy :notable="$company" />
         </div>
 
         <div>
-            <livewire:attachments :model="$company" />
+            <livewire:attachments lazy :model="$company" />
         </div>
     </div>
 </div>

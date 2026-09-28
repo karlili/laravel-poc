@@ -23,6 +23,10 @@ new class extends Component {
     /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
     public array $uploads = [];
 
+    /** The note awaiting confirmation in the delete modal. */
+    #[Locked]
+    public ?int $deletingId = null;
+
     public function mount(Model $notable): void
     {
         abort_unless($notable instanceof Company || $notable instanceof Contact, 404);
@@ -70,17 +74,39 @@ new class extends Component {
         Flux::toast(variant: 'success', text: __('Note added.'));
     }
 
-    public function delete(int $noteId): void
+    public function confirmDelete(int $noteId): void
     {
         $note = $this->notable->notes()->findOrFail($noteId);
         $this->authorize('delete', $note);
 
+        $this->deletingId = $note->id;
+
+        Flux::modal('delete-note')->show();
+    }
+
+    public function delete(): void
+    {
+        $note = $this->notable->notes()->findOrFail($this->deletingId);
+        $this->authorize('delete', $note);
+
         $note->delete();
+        $this->reset('deletingId');
         unset($this->notes);
 
+        Flux::modal('delete-note')->close();
         Flux::toast(variant: 'success', text: __('Note deleted.'));
     }
 }; ?>
+
+@placeholder
+    <flux:card class="space-y-4">
+        <flux:heading size="lg">{{ __('Notes') }}</flux:heading>
+        <flux:skeleton.group animate="shimmer" class="space-y-2">
+            <flux:skeleton.line />
+            <flux:skeleton.line class="w-2/3" />
+        </flux:skeleton.group>
+    </flux:card>
+@endplaceholder
 
 <flux:card class="space-y-4">
     <flux:heading size="lg">{{ __('Notes') }}</flux:heading>
@@ -106,7 +132,7 @@ new class extends Component {
                     </flux:text>
 
                     @can('delete', $note)
-                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="delete({{ $note->id }})" wire:confirm="{{ __('Delete this note?') }}" :aria-label="__('Delete note')" />
+                        <flux:button size="xs" variant="ghost" icon="trash" wire:click="confirmDelete({{ $note->id }})" :aria-label="__('Delete note')" />
                     @endcan
                 </div>
 
@@ -126,4 +152,17 @@ new class extends Component {
             <flux:text>{{ __('No notes yet.') }}</flux:text>
         @endforelse
     </div>
+
+    <flux:modal name="delete-note" class="min-w-[22rem]">
+        <div class="space-y-6">
+            <flux:heading size="lg">{{ __('Delete this note?') }}</flux:heading>
+            <flux:text>{{ __('The note and its attached files are removed.') }}</flux:text>
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button variant="danger" wire:click="delete">{{ __('Delete') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </flux:card>

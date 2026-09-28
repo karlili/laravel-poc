@@ -5,6 +5,7 @@ use App\Models\Contact;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -24,6 +25,10 @@ new #[Title('Contacts')] class extends Component {
 
     #[Url(except: 'asc')]
     public string $sortDirection = 'asc';
+
+    /** The contact awaiting confirmation in the delete modal. */
+    #[Locked]
+    public ?int $deletingId = null;
 
     public function mount(): void
     {
@@ -64,13 +69,31 @@ new #[Title('Contacts')] class extends Component {
             ->paginate(15);
     }
 
-    public function delete(Contact $contact): void
+    #[Computed]
+    public function deleting(): ?Contact
     {
+        return $this->deletingId ? Contact::find($this->deletingId) : null;
+    }
+
+    public function confirmDelete(Contact $contact): void
+    {
+        $this->authorize('delete', $contact);
+
+        $this->deletingId = $contact->id;
+        unset($this->deleting);
+
+        Flux::modal('delete-contact')->show();
+    }
+
+    public function delete(): void
+    {
+        $contact = Contact::findOrFail($this->deletingId);
         $this->authorize('delete', $contact);
 
         $contact->delete();
 
-        Flux::modals()->close();
+        $this->reset('deletingId');
+        Flux::modal('delete-contact')->close();
         Flux::toast(variant: 'success', text: __('Contact deleted.'));
     }
 }; ?>
@@ -126,22 +149,7 @@ new #[Title('Contacts')] class extends Component {
                                 <flux:button size="sm" variant="ghost" icon="pencil-square" :href="route('contacts.edit', $contact)" wire:navigate :aria-label="__('Edit')" />
                             @endcan
                             @can('delete', $contact)
-                                <flux:modal.trigger :name="'delete-contact-'.$contact->id">
-                                    <flux:button size="sm" variant="ghost" icon="trash" :aria-label="__('Delete')" />
-                                </flux:modal.trigger>
-
-                                <flux:modal :name="'delete-contact-'.$contact->id" class="min-w-[22rem]">
-                                    <div class="space-y-6 whitespace-normal">
-                                        <flux:heading size="lg">{{ __('Delete :name?', ['name' => $contact->full_name]) }}</flux:heading>
-                                        <flux:text>{{ __('The contact is moved to the archive.') }}</flux:text>
-                                        <div class="flex justify-end gap-2">
-                                            <flux:modal.close>
-                                                <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
-                                            </flux:modal.close>
-                                            <flux:button variant="danger" wire:click="delete({{ $contact->id }})">{{ __('Delete') }}</flux:button>
-                                        </div>
-                                    </div>
-                                </flux:modal>
+                                <flux:button size="sm" variant="ghost" icon="trash" wire:click="confirmDelete({{ $contact->id }})" :aria-label="__('Delete')" />
                             @endcan
                         </div>
                     </flux:table.cell>
@@ -153,4 +161,17 @@ new #[Title('Contacts')] class extends Component {
             @endforelse
         </flux:table.rows>
     </flux:table>
+
+    <flux:modal name="delete-contact" class="min-w-[22rem]">
+        <div class="space-y-6">
+            <flux:heading size="lg">{{ __('Delete :name?', ['name' => $this->deleting?->full_name]) }}</flux:heading>
+            <flux:text>{{ __('The contact is moved to the archive.') }}</flux:text>
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button variant="danger" wire:click="delete">{{ __('Delete') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </div>

@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -111,13 +112,28 @@ class CompanyTest extends TestCase
 
         Livewire::actingAs($sales)
             ->test('pages::companies.index')
-            ->call('delete', $own->id)
+            ->call('confirmDelete', $own->id)
+            ->assertSet('deletingId', $own->id)
+            ->call('delete')
             ->assertOk()
-            ->call('delete', $theirs->id)
+            ->assertSet('deletingId', null)
+            ->call('confirmDelete', $theirs->id)
             ->assertForbidden();
 
         $this->assertSoftDeleted($own);
         $this->assertNotSoftDeleted($theirs);
+    }
+
+    public function test_the_company_awaiting_deletion_cannot_be_changed_from_the_browser(): void
+    {
+        $sales = $this->userWithRole(Role::Sales);
+        $theirs = Company::factory()->create();
+
+        $this->expectException(CannotUpdateLockedPropertyException::class);
+
+        Livewire::actingAs($sales)
+            ->test('pages::companies.index')
+            ->set('deletingId', $theirs->id);
     }
 
     public function test_index_can_be_searched(): void

@@ -13,6 +13,7 @@ A customer relationship management (CRM) app built on **Laravel 13** with Livewi
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | How the pieces fit together, and the roles and permissions |
 | [docs/deployment-azure.md](docs/deployment-azure.md) | Terraform, GitHub OIDC and the first deploy to Azure |
+| [docs/laravel-guide.md](docs/laravel-guide.md) | Project folders and how Laravel handles a request |
 
 ## Stack
 

@@ -62,11 +62,11 @@ new class extends Component {
                 </dl>
             </flux:card>
 
-            <livewire:notes-thread :notable="$contact" />
+            <livewire:notes-thread lazy :notable="$contact" />
         </div>
 
         <div>
-            <livewire:attachments :model="$contact" />
+            <livewire:attachments lazy :model="$contact" />
         </div>
     </div>
 </div>

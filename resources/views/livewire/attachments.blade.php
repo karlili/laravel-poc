@@ -19,6 +19,10 @@ new class extends Component {
     /** @var array<int, \Livewire\Features\SupportFileUploads\TemporaryUploadedFile> */
     public array $uploads = [];
 
+    /** The file awaiting confirmation in the delete modal. */
+    #[Locked]
+    public ?int $deletingId = null;
+
     public function mount(Model $model): void
     {
         abort_unless($model instanceof HasMedia, 404);
@@ -59,17 +63,38 @@ new class extends Component {
         Flux::toast(variant: 'success', text: __('Files uploaded.'));
     }
 
-    public function delete(int $mediaId): void
+    public function confirmDelete(int $mediaId): void
     {
         $this->authorize('update', $this->model);
 
-        $this->model->media()->whereKey($mediaId)->firstOrFail()->delete();
+        $this->deletingId = $this->model->media()->whereKey($mediaId)->firstOrFail()->getKey();
+
+        Flux::modal('delete-attachment')->show();
+    }
+
+    public function delete(): void
+    {
+        $this->authorize('update', $this->model);
+
+        $this->model->media()->whereKey($this->deletingId)->firstOrFail()->delete();
+        $this->reset('deletingId');
         $this->model->unsetRelation('media');
         unset($this->attachments);
 
+        Flux::modal('delete-attachment')->close();
         Flux::toast(variant: 'success', text: __('File deleted.'));
     }
 }; ?>
+
+@placeholder
+    <flux:card class="space-y-4">
+        <flux:heading size="lg">{{ __('Attachments') }}</flux:heading>
+        <flux:skeleton.group animate="shimmer" class="space-y-3">
+            <flux:skeleton class="h-12 w-full" />
+            <flux:skeleton class="h-12 w-full" />
+        </flux:skeleton.group>
+    </flux:card>
+@endplaceholder
 
 <flux:card class="space-y-4">
     <flux:heading size="lg">{{ __('Attachments') }}</flux:heading>
@@ -104,11 +129,24 @@ new class extends Component {
                 </div>
 
                 @if ($this->canManage)
-                    <flux:button size="sm" variant="ghost" icon="trash" wire:click="delete({{ $media->id }})" wire:confirm="{{ __('Delete this file?') }}" :aria-label="__('Delete')" />
+                    <flux:button size="sm" variant="ghost" icon="trash" wire:click="confirmDelete({{ $media->id }})" :aria-label="__('Delete')" />
                 @endif
             </li>
         @empty
             <flux:text>{{ __('No files yet.') }}</flux:text>
         @endforelse
     </ul>
+
+    <flux:modal name="delete-attachment" class="min-w-[22rem]">
+        <div class="space-y-6">
+            <flux:heading size="lg">{{ __('Delete :name?', ['name' => $this->attachments->firstWhere('id', $deletingId)?->file_name]) }}</flux:heading>
+            <flux:text>{{ __('The file is removed permanently.') }}</flux:text>
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button variant="danger" wire:click="delete">{{ __('Delete') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 </flux:card>

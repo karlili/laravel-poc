@@ -99,6 +99,34 @@ class AttachmentTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_only_users_who_can_edit_the_record_can_delete_its_files(): void
+    {
+        $sales = $this->userWithRole(Role::Sales);
+        $company = Company::factory()->for($sales, 'owner')->create();
+
+        Livewire::actingAs($sales)
+            ->test('attachments', ['model' => $company])
+            ->set('uploads', [$this->fakePdf('Contract.pdf')])
+            ->call('save');
+
+        $media = $company->fresh()->getFirstMedia('attachments');
+        $this->assertNotNull($media);
+
+        Livewire::actingAs($this->userWithRole(Role::Sales))
+            ->test('attachments', ['model' => $company])
+            ->call('confirmDelete', $media->id)
+            ->assertForbidden();
+
+        Livewire::actingAs($sales)
+            ->test('attachments', ['model' => $company])
+            ->call('confirmDelete', $media->id)
+            ->call('delete')
+            ->assertOk()
+            ->assertDontSee('contract.pdf');
+
+        $this->assertCount(0, $company->fresh()->getMedia('attachments'));
+    }
+
     public function test_note_attachments_follow_the_parent_record(): void
     {
         $sales = $this->userWithRole(Role::Sales);
