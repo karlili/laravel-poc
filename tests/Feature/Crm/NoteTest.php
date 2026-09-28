@@ -4,9 +4,10 @@ namespace Tests\Feature\Crm;
 
 use App\Enums\Role;
 use App\Models\Company;
+use App\Models\Contact;
 use App\Models\Note;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class NoteTest extends TestCase
@@ -18,18 +19,52 @@ class NoteTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->create();
 
-        Livewire::actingAs($sales)
-            ->test('notes-thread', ['notable' => $company])
-            ->set('body', 'Called about renewal.')
-            ->call('add')
-            ->assertHasNoErrors()
-            ->assertSee('Called about renewal.');
+        $this->actingAs($sales)
+            ->from(route('companies.show', $company))
+            ->post(route('companies.notes.store', $company), ['body' => 'Called about renewal.'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('companies.show', $company));
 
         $this->assertDatabaseHas('notes', [
             'notable_type' => 'company',
             'notable_id' => $company->id,
             'author_id' => $sales->id,
         ]);
+
+        $this->get(route('companies.show', $company))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('can.createNote', true)
+                ->where('notes.0.body', 'Called about renewal.')
+                ->where('notes.0.author.name', $sales->name)
+                ->where('notes.0.can.delete', true),
+            );
+    }
+
+    public function test_notes_can_be_added_to_contacts(): void
+    {
+        $sales = $this->userWithRole(Role::Sales);
+        $contact = Contact::factory()->create();
+
+        $this->actingAs($sales)
+            ->post(route('contacts.notes.store', $contact), ['body' => 'Prefers email.'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('notes', [
+            'notable_type' => 'contact',
+            'notable_id' => $contact->id,
+            'body' => 'Prefers email.',
+        ]);
+    }
+
+    public function test_a_note_needs_a_body(): void
+    {
+        $company = Company::factory()->create();
+
+        $this->actingAs($this->userWithRole(Role::Sales))
+            ->post(route('companies.notes.store', $company), ['body' => ''])
+            ->assertSessionHasErrors('body');
+
+        $this->assertDatabaseCount('notes', 0);
     }
 
     public function test_viewers_cannot_add_notes(): void
@@ -37,12 +72,11 @@ class NoteTest extends TestCase
         $viewer = $this->userWithRole(Role::Viewer);
         $company = Company::factory()->create();
 
-        Livewire::actingAs($viewer)
-            ->test('notes-thread', ['notable' => $company])
-            ->assertDontSee('Add note')
-            ->set('body', 'Sneaky')
-            ->call('add')
-            ->assertForbidden();
+        $this->actingAs($viewer)
+            ->get(route('companies.show', $company))
+            ->assertInertia(fn (Assert $page) => $page->where('can.createNote', false));
+
+        $this->post(route('companies.notes.store', $company), ['body' => 'Sneaky'])->assertForbidden();
 
         $this->assertDatabaseCount('notes', 0);
     }
@@ -56,22 +90,14 @@ class NoteTest extends TestCase
         $first = Note::factory()->for($company, 'notable')->create(['author_id' => $author->id]);
         $second = Note::factory()->for($company, 'notable')->create(['author_id' => $author->id]);
 
-        Livewire::actingAs($otherSales)
-            ->test('notes-thread', ['notable' => $company])
-            ->call('confirmDelete', $first->id)
-            ->assertForbidden();
+        $this->actingAs($otherSales)
+            ->get(route('companies.show', $company))
+            ->assertInertia(fn (Assert $page) => $page->where('notes.0.can.delete', false));
 
-        Livewire::actingAs($author)
-            ->test('notes-thread', ['notable' => $company])
-            ->call('confirmDelete', $first->id)
-            ->call('delete')
-            ->assertOk();
+        $this->delete(route('notes.destroy', $first))->assertForbidden();
 
-        Livewire::actingAs($manager)
-            ->test('notes-thread', ['notable' => $company])
-            ->call('confirmDelete', $second->id)
-            ->call('delete')
-            ->assertOk();
+        $this->actingAs($author)->delete(route('notes.destroy', $first))->assertRedirect();
+        $this->actingAs($manager)->delete(route('notes.destroy', $second))->assertRedirect();
 
         $this->assertDatabaseCount('notes', 0);
     }

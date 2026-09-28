@@ -2,26 +2,23 @@
 
 namespace App\Actions\Attachments;
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
-use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class StoreAttachment
 {
     /**
-     * Copy a Livewire upload into the record's "attachments" collection.
-     *
-     * The upload is read as a stream so this works whether Livewire's
-     * temporary uploads live on local disk or in Azure Blob Storage.
+     * Move an uploaded file into the record's "attachments" collection.
      */
-    public function __invoke(HasMedia $model, TemporaryUploadedFile $file): Media
+    public function __invoke(HasMedia $model, UploadedFile $file): Media
     {
         $originalName = $file->getClientOriginalName();
         $extension = Str::lower($file->getClientOriginalExtension() ?: (string) $file->guessExtension());
         $baseName = Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'file';
 
-        return $model->addMediaFromStream($file->readStream())
+        return $model->addMedia($file)
             ->usingName(pathinfo($originalName, PATHINFO_FILENAME))
             ->usingFileName($baseName.($extension !== '' ? '.'.$extension : ''))
             ->withCustomProperties(['uploaded_by' => auth()->id()])

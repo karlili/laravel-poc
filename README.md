@@ -1,6 +1,6 @@
 # Laravel CRM
 
-A customer relationship management (CRM) app built on **Laravel 13** with Livewire 4 and Flux. It covers:
+A customer relationship management (CRM) app built on **Laravel 13** with Inertia and React. It covers:
 
 - Companies, contacts and notes, with search, filters, sorting and a soft-delete archive.
 - Document and image attachments, with image thumbnails and access-checked downloads.
@@ -20,7 +20,8 @@ A customer relationship management (CRM) app built on **Laravel 13** with Livewi
 | Area | Choice |
 |---|---|
 | Framework | Laravel 13, PHP 8.4 |
-| UI | Livewire 4 single-file components, Flux UI, Tailwind CSS 4, Vite |
+| UI | Inertia v3, React 19 and TypeScript, shadcn/ui components, Tailwind CSS 4, Vite (vite-plus) |
+| Routes in TypeScript | Laravel Wayfinder (generated route and controller helpers) |
 | Auth | Laravel Fortify |
 | Authorisation | `spatie/laravel-permission` and Laravel policies |
 | Files | `spatie/laravel-medialibrary` on Azure Blob Storage (`azure-oss/storage-blob-laravel`) |
@@ -36,8 +37,10 @@ A customer relationship management (CRM) app built on **Laravel 13** with Livewi
 | `app/Models` | `Company`, `Contact`, `Note` and `User` |
 | `app/Policies` | Authorisation rules, including record ownership |
 | `app/Enums` | `Role` and `Permission` enums |
-| `app/Http/Controllers` | Attachment downloads |
-| `resources/views/pages` | Livewire page components (dashboard, companies, contacts, admin, settings, auth) |
+| `app/Http/Controllers` | Page controllers (dashboard, companies, contacts, notes, attachments, admin, settings) and attachment downloads |
+| `app/Http/Requests`, `app/Http/Resources` | Form validation, and the props sent to the React pages |
+| `resources/js/pages` | React pages (dashboard, companies, contacts, admin, settings, auth) |
+| `resources/js/components` | Shared React components; `components/ui` holds the shadcn/ui components |
 | `routes/web.php` | Application routes |
 | `database/seeders` | Roles, permissions and demo data |
 | `docker-compose.yml`, `Dockerfile` | Local stack and the production image |
@@ -60,8 +63,9 @@ You do not need PHP, Composer or Node on your machine; everything runs in contai
 cp .env.example .env
 
 # 2. Build the image and start the stack (app, Vite, MySQL, Azurite, Mailpit).
-#    Vite waits for the app's composer install, then runs npm ci, builds the
-#    assets and starts the dev server with hot reload (http://localhost:5173).
+#    The app container runs composer install and generates Wayfinder's route
+#    helpers on start. Vite waits for them, then runs npm ci, builds the assets
+#    and starts the dev server with hot reload (http://localhost:5173).
 docker compose up -d --build
 
 # 3. Generate the app key. The app container runs `composer install` on every start;
@@ -109,6 +113,14 @@ docker compose down -v                        # stop and delete the database and
 
 To start again from a clean database: `docker compose exec app php artisan migrate:fresh --seed`.
 
+The `vite` container has no PHP, so it can't regenerate Wayfinder's TypeScript route helpers (`resources/js/{actions,routes,wayfinder}`, git-ignored) when you change routes or controllers. Regenerate them yourself:
+
+```bash
+docker compose exec app php artisan wayfinder:generate --with-form
+```
+
+If you pulled this change into an existing checkout, rebuild the dev image once (`docker compose up -d --build`) so the app container picks up the start-up script that generates them.
+
 ## Running without Docker
 
 If you prefer PHP on your machine, you need PHP 8.4 with the `bcmath`, `exif`, `gd`, `intl` and `pdo_sqlite` (or `pdo_mysql`) extensions, Composer 2 and Node 22.
@@ -136,7 +148,7 @@ If you prefer PHP on your machine, you need PHP 8.4 with the `bcmath`, `exif`, `
    touch database/database.sqlite
    php artisan migrate --seed
    npm install
-   npm run build
+   npm run build        # the Wayfinder Vite plugin runs `php artisan wayfinder:generate` for you
    ```
 
 3. Start the web server, log viewer and Vite together:
@@ -158,13 +170,15 @@ docker compose exec app php artisan test        # PHPUnit (SQLite in memory)
 docker compose exec app vendor/bin/pint         # code style
 docker compose exec app vendor/bin/phpstan      # static analysis
 docker compose exec app composer test           # all of the above, as CI runs them
+npm run types:check                             # TypeScript (needs the Wayfinder files)
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same checks against MySQL 8.4 and builds the production Docker image.
+CI (`.github/workflows/ci.yml`) runs the same checks against MySQL 8.4, type-checks the frontend and builds the production Docker image.
 
 ## Troubleshooting
 
 - **`Vite manifest not found`**: build the assets (`npm run build`) or start the Vite dev server.
+- **`Cannot find module '@/routes'` or `@/actions/...`**: generate Wayfinder's helpers (`php artisan wayfinder:generate --with-form`).
 - **Attachment uploads fail**: make sure Azurite is running and you ran `php artisan media:ensure-container`, or set `MEDIA_DISK=media`.
 - **No verification email**: look in Mailpit at http://localhost:8025.
 - **Permission errors on `storage/`**: set `UID` and `GID` to your user's IDs before building (`UID=$(id -u) GID=$(id -g) docker compose up -d --build`).

@@ -33,13 +33,12 @@ locals {
     CACHE_STORE           = "database"
     QUEUE_CONNECTION      = "sync"
 
-    MEDIA_DISK                          = "azure"
-    MEDIA_DOWNLOAD_STRATEGY             = "stream"
-    LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK = "azure"
-    AZURE_STORAGE_ACCOUNT_NAME          = azurerm_storage_account.media.name
-    AZURE_STORAGE_CONTAINER             = azurerm_storage_container.media.name
-    AZURE_STORAGE_CREDENTIAL            = "managed_identity"
-    AZURE_STORAGE_CLIENT_ID             = azurerm_user_assigned_identity.app.client_id
+    MEDIA_DISK                 = "azure"
+    MEDIA_DOWNLOAD_STRATEGY    = "stream"
+    AZURE_STORAGE_ACCOUNT_NAME = azurerm_storage_account.media.name
+    AZURE_STORAGE_CONTAINER    = azurerm_storage_container.media.name
+    AZURE_STORAGE_CREDENTIAL   = "managed_identity"
+    AZURE_STORAGE_CLIENT_ID    = azurerm_user_assigned_identity.app.client_id
 
     CRM_DEFAULT_ROLE = var.default_role
 

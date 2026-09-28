@@ -38,6 +38,9 @@ services:
     command: [ "sh", "docker/vite-dev.sh" ]
     environment:
       VITE_HMR_HOST: localhost
+      # No PHP here: the app container generates Wayfinder's route helpers.
+      # After changing routes, run: docker compose exec app php artisan wayfinder:generate --with-form
+      WAYFINDER_COMMAND: "true"
     volumes:
       - .:/var/www/html
     ports:

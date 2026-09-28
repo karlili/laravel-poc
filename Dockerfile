@@ -49,10 +49,12 @@ COPY --chown=www-data:www-data composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-progress --no-scripts --no-autoloader --prefer-dist
 
 COPY --chown=www-data:www-data . .
-RUN composer dump-autoload --no-dev --optimize
+RUN composer dump-autoload --no-dev --optimize \
+    # TypeScript route helpers for the frontend build, which has no PHP.
+    && php artisan wayfinder:generate --with-form
 
 ############################################
-# Frontend assets. Tailwind scans Flux's Blade stubs, so this stage needs vendor/.
+# Frontend assets. Wayfinder's route helpers come from the vendor stage.
 ############################################
 FROM node:${NODE_VERSION}-bookworm-slim AS assets
 
@@ -60,10 +62,13 @@ WORKDIR /app
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
-COPY vite.config.js ./
+COPY vite.config.ts tsconfig.json ./
 COPY resources ./resources
-COPY --from=vendor /var/www/html/vendor/livewire/flux ./vendor/livewire/flux
-COPY --from=vendor /var/www/html/vendor/laravel/framework/src/Illuminate/Pagination/resources/views ./vendor/laravel/framework/src/Illuminate/Pagination/resources/views
+COPY --from=vendor /var/www/html/resources/js/actions ./resources/js/actions
+COPY --from=vendor /var/www/html/resources/js/routes ./resources/js/routes
+COPY --from=vendor /var/www/html/resources/js/wayfinder ./resources/js/wayfinder
+# The files above are already generated; skip the plugin's `php artisan` call.
+ENV WAYFINDER_COMMAND=true
 RUN npm run build
 
 ############################################

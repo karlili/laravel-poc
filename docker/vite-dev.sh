@@ -4,10 +4,12 @@
 # once the dev server stops, then serves with hot reload.
 set -e
 
-# app.css imports Flux's stylesheet from vendor/, which the app container
-# installs on start. Wait for it so a first run doesn't fail the build.
-until [ -f vendor/autoload.php ] && [ -f vendor/livewire/flux/dist/flux.css ]; do
-    echo "vite: waiting for the app container's composer install..."
+# This container has no PHP. The app container installs Composer packages and
+# generates Wayfinder's route helpers on start (docker/entrypoint.d); wait for
+# them so a first run doesn't fail the build. WAYFINDER_COMMAND in
+# docker-compose.yml stops the Vite plugin trying to run `php artisan` here.
+until [ -f vendor/autoload.php ] && [ -f resources/js/routes/index.ts ]; do
+    echo "vite: waiting for the app container's composer install and Wayfinder..."
     sleep 3
 done
 

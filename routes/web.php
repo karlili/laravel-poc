@@ -1,29 +1,37 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\ContactController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaDownloadController;
+use App\Http\Controllers\NoteController;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
+Route::inertia('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
-    Route::livewire('companies', 'pages::companies.index')->name('companies.index');
-    Route::livewire('companies/create', 'pages::companies.form')->name('companies.create');
-    Route::livewire('companies/{company}', 'pages::companies.show')->name('companies.show');
-    Route::livewire('companies/{company}/edit', 'pages::companies.form')->name('companies.edit');
+    Route::resource('companies', CompanyController::class);
+    Route::resource('contacts', ContactController::class);
 
-    Route::livewire('contacts', 'pages::contacts.index')->name('contacts.index');
-    Route::livewire('contacts/create', 'pages::contacts.form')->name('contacts.create');
-    Route::livewire('contacts/{contact}', 'pages::contacts.show')->name('contacts.show');
-    Route::livewire('contacts/{contact}/edit', 'pages::contacts.form')->name('contacts.edit');
+    Route::post('companies/{company}/notes', [NoteController::class, 'storeForCompany'])->name('companies.notes.store');
+    Route::post('contacts/{contact}/notes', [NoteController::class, 'storeForContact'])->name('contacts.notes.store');
+    Route::delete('notes/{note}', [NoteController::class, 'destroy'])->name('notes.destroy');
+
+    Route::post('companies/{company}/attachments', [AttachmentController::class, 'storeForCompany'])->name('companies.attachments.store');
+    Route::post('contacts/{contact}/attachments', [AttachmentController::class, 'storeForContact'])->name('contacts.attachments.store');
+    Route::delete('attachments/{media}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 
     Route::get('media/{media}/{conversion?}', MediaDownloadController::class)->name('media.show');
 
-    Route::livewire('admin/users', 'pages::admin.users')
-        ->middleware('can:'.Permission::ManageUsers)
-        ->name('admin.users');
+    Route::middleware('can:'.Permission::ManageUsers)->group(function () {
+        Route::get('admin/users', [UserController::class, 'index'])->name('admin.users');
+        Route::patch('admin/users/{user}/role', [UserController::class, 'updateRole'])->name('admin.users.role');
+    });
 });
 
 require __DIR__.'/settings.php';

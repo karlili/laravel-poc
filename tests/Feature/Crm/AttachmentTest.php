@@ -8,7 +8,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class AttachmentTest extends TestCase
@@ -35,15 +35,15 @@ class AttachmentTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->for($sales, 'owner')->create();
 
-        Livewire::actingAs($sales)
-            ->test('attachments', ['model' => $company])
-            ->set('uploads', [
-                UploadedFile::fake()->image('Site photo.png', 1600, 1200),
-                $this->fakePdf('Contract.pdf'),
+        $this->actingAs($sales)
+            ->post(route('companies.attachments.store', $company), [
+                'uploads' => [
+                    UploadedFile::fake()->image('Site photo.png', 1600, 1200),
+                    $this->fakePdf('Contract.pdf'),
+                ],
             ])
-            ->call('save')
-            ->assertHasNoErrors()
-            ->assertSee('contract.pdf');
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
         $media = $company->fresh()->getMedia('attachments');
 
@@ -55,6 +55,15 @@ class AttachmentTest extends TestCase
         $this->assertTrue($image->hasGeneratedConversion('preview'));
         Storage::disk('media')->assertExists($image->getPathRelativeToRoot());
         Storage::disk('media')->assertExists($image->getPathRelativeToRoot('thumb'));
+
+        $this->get(route('companies.show', $company))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('attachments', 2)
+                ->where('can.manageAttachments', true)
+                ->where('attachments.1.file_name', 'contract.pdf')
+                ->where('attachments.1.thumb_url', null)
+                ->where('attachments.0.thumb_url', route('media.show', [$image, 'thumb'])),
+            );
     }
 
     public function test_disallowed_file_types_are_rejected(): void
@@ -62,11 +71,11 @@ class AttachmentTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->for($sales, 'owner')->create();
 
-        Livewire::actingAs($sales)
-            ->test('attachments', ['model' => $company])
-            ->set('uploads', [UploadedFile::fake()->create('payload.exe', 10, 'application/x-msdownload')])
-            ->call('save')
-            ->assertHasErrors('uploads.0');
+        $this->actingAs($sales)
+            ->post(route('companies.attachments.store', $company), [
+                'uploads' => [UploadedFile::fake()->create('payload.exe', 10, 'application/x-msdownload')],
+            ])
+            ->assertSessionHasErrors('uploads.0');
 
         $this->assertCount(0, $company->fresh()->getMedia('attachments'));
     }
@@ -76,10 +85,10 @@ class AttachmentTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->create();
 
-        Livewire::actingAs($sales)
-            ->test('attachments', ['model' => $company])
-            ->set('uploads', [UploadedFile::fake()->createWithContent('notes.txt', 'Plain text notes')])
-            ->call('save')
+        $this->actingAs($sales)
+            ->post(route('companies.attachments.store', $company), [
+                'uploads' => [UploadedFile::fake()->createWithContent('notes.txt', 'Plain text notes')],
+            ])
             ->assertForbidden();
     }
 
@@ -103,26 +112,15 @@ class AttachmentTest extends TestCase
     {
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->for($sales, 'owner')->create();
+        $media = $company->addMedia($this->fakePdf('Contract.pdf'))->toMediaCollection('attachments');
 
-        Livewire::actingAs($sales)
-            ->test('attachments', ['model' => $company])
-            ->set('uploads', [$this->fakePdf('Contract.pdf')])
-            ->call('save');
-
-        $media = $company->fresh()->getFirstMedia('attachments');
-        $this->assertNotNull($media);
-
-        Livewire::actingAs($this->userWithRole(Role::Sales))
-            ->test('attachments', ['model' => $company])
-            ->call('confirmDelete', $media->id)
+        $this->actingAs($this->userWithRole(Role::Sales))
+            ->delete(route('attachments.destroy', $media))
             ->assertForbidden();
 
-        Livewire::actingAs($sales)
-            ->test('attachments', ['model' => $company])
-            ->call('confirmDelete', $media->id)
-            ->call('delete')
-            ->assertOk()
-            ->assertDontSee('contract.pdf');
+        $this->actingAs($sales)
+            ->delete(route('attachments.destroy', $media))
+            ->assertRedirect();
 
         $this->assertCount(0, $company->fresh()->getMedia('attachments'));
     }
@@ -132,17 +130,22 @@ class AttachmentTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $company = Company::factory()->create();
 
-        Livewire::actingAs($sales)
-            ->test('notes-thread', ['notable' => $company])
-            ->set('body', 'Signed copy attached.')
-            ->set('uploads', [$this->fakePdf('signed.pdf')])
-            ->call('add')
-            ->assertHasNoErrors();
+        $this->actingAs($sales)
+            ->post(route('companies.notes.store', $company), [
+                'body' => 'Signed copy attached.',
+                'uploads' => [$this->fakePdf('signed.pdf')],
+            ])
+            ->assertSessionHasNoErrors();
 
         $media = $company->notes()->first()->getFirstMedia('attachments');
 
         $this->assertNotNull($media);
         $this->actingAs($this->userWithRole(Role::Viewer))->get(route('media.show', $media))->assertOk();
         $this->actingAs(User::factory()->create())->get(route('media.show', $media))->assertForbidden();
+
+        // A note's files are removed with the note, not through the attachments endpoint.
+        $this->actingAs($this->userWithRole(Role::Admin))
+            ->delete(route('attachments.destroy', $media))
+            ->assertNotFound();
     }
 }

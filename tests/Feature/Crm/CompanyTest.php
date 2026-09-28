@@ -6,8 +6,7 @@ use App\Enums\Role;
 use App\Models\Company;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
-use Livewire\Livewire;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class CompanyTest extends TestCase
@@ -33,10 +32,26 @@ class CompanyTest extends TestCase
 
         $this->actingAs($viewer);
 
-        $this->get(route('companies.index'))->assertOk()->assertSee('Acme Pty Ltd');
-        $this->get(route('companies.show', $company))->assertOk();
+        $this->get(route('companies.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('companies/index')
+                ->where('companies.data.0.name', 'Acme Pty Ltd')
+                ->where('companies.data.0.can', ['update' => false, 'delete' => false])
+                ->where('can.create', false),
+            );
+
+        $this->get(route('companies.show', $company))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('companies/show')
+                ->where('company.name', 'Acme Pty Ltd')
+                ->where('can.manageAttachments', false),
+            );
+
         $this->get(route('companies.create'))->assertForbidden();
         $this->get(route('companies.edit', $company))->assertForbidden();
+        $this->post(route('companies.store'), ['name' => 'Nope'])->assertForbidden();
     }
 
     public function test_sales_can_create_a_company_they_own(): void
@@ -44,30 +59,37 @@ class CompanyTest extends TestCase
         $sales = $this->userWithRole(Role::Sales);
         $other = User::factory()->create();
 
-        Livewire::actingAs($sales)
-            ->test('pages::companies.form')
-            ->set('form.name', 'Globex')
-            ->set('form.industry', 'Technology')
-            ->set('form.country', 'au')
-            ->set('form.owner_id', $other->id)
-            ->call('save')
-            ->assertHasNoErrors()
-            ->assertRedirect();
+        $this->actingAs($sales)
+            ->get(route('companies.create'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('companies/form')
+                ->where('company', null)
+                ->where('canAssign', false)
+                ->where('users', []),
+            );
+
+        $response = $this->post(route('companies.store'), [
+            'name' => 'Globex',
+            'industry' => 'Technology',
+            'country' => 'au',
+            'owner_id' => $other->id,
+        ]);
 
         $company = Company::firstWhere('name', 'Globex');
 
         $this->assertNotNull($company);
+        $response->assertSessionHasNoErrors()->assertRedirect(route('companies.show', $company));
         $this->assertSame('AU', $company->country);
         $this->assertTrue($company->isOwnedBy($sales), 'Sales users cannot assign records to others.');
     }
 
     public function test_company_name_is_required(): void
     {
-        Livewire::actingAs($this->userWithRole(Role::Sales))
-            ->test('pages::companies.form')
-            ->set('form.name', '')
-            ->call('save')
-            ->assertHasErrors(['form.name' => 'required']);
+        $this->actingAs($this->userWithRole(Role::Sales))
+            ->post(route('companies.store'), ['name' => ''])
+            ->assertSessionHasErrors(['name' => 'The name field is required.']);
+
+        $this->assertDatabaseCount('companies', 0);
     }
 
     public function test_sales_can_only_edit_their_own_companies(): void
@@ -81,12 +103,13 @@ class CompanyTest extends TestCase
         $this->get(route('companies.edit', $own))->assertOk();
         $this->get(route('companies.edit', $theirs))->assertForbidden();
 
-        Livewire::test('pages::companies.form', ['company' => $own])
-            ->set('form.name', 'Renamed')
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->put(route('companies.update', $own), ['name' => 'Renamed'])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('companies.show', $own));
+        $this->put(route('companies.update', $theirs), ['name' => 'Hijacked'])->assertForbidden();
 
         $this->assertSame('Renamed', $own->fresh()->name);
+        $this->assertNotSame('Hijacked', $theirs->fresh()->name);
     }
 
     public function test_managers_can_edit_and_reassign_any_company(): void
@@ -95,11 +118,17 @@ class CompanyTest extends TestCase
         $newOwner = User::factory()->create();
         $company = Company::factory()->create();
 
-        Livewire::actingAs($manager)
-            ->test('pages::companies.form', ['company' => $company])
-            ->set('form.owner_id', $newOwner->id)
-            ->call('save')
-            ->assertHasNoErrors();
+        $this->actingAs($manager)
+            ->get(route('companies.edit', $company))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('canAssign', true)
+                ->has('users', User::count()),
+            );
+
+        $this->put(route('companies.update', $company), [
+            'name' => $company->name,
+            'owner_id' => $newOwner->id,
+        ])->assertSessionHasNoErrors();
 
         $this->assertTrue($company->fresh()->isOwnedBy($newOwner));
     }
@@ -110,43 +139,60 @@ class CompanyTest extends TestCase
         $own = Company::factory()->for($sales, 'owner')->create();
         $theirs = Company::factory()->create();
 
-        Livewire::actingAs($sales)
-            ->test('pages::companies.index')
-            ->call('confirmDelete', $own->id)
-            ->assertSet('deletingId', $own->id)
-            ->call('delete')
-            ->assertOk()
-            ->assertSet('deletingId', null)
-            ->call('confirmDelete', $theirs->id)
-            ->assertForbidden();
+        $this->actingAs($sales)
+            ->from(route('companies.index', ['search' => $own->name]))
+            ->delete(route('companies.destroy', $own))
+            ->assertRedirect(route('companies.index', ['search' => $own->name]));
+
+        $this->delete(route('companies.destroy', $theirs))->assertForbidden();
 
         $this->assertSoftDeleted($own);
         $this->assertNotSoftDeleted($theirs);
     }
 
-    public function test_the_company_awaiting_deletion_cannot_be_changed_from_the_browser(): void
-    {
-        $sales = $this->userWithRole(Role::Sales);
-        $theirs = Company::factory()->create();
-
-        $this->expectException(CannotUpdateLockedPropertyException::class);
-
-        Livewire::actingAs($sales)
-            ->test('pages::companies.index')
-            ->set('deletingId', $theirs->id);
-    }
-
-    public function test_index_can_be_searched(): void
+    public function test_index_can_be_searched_filtered_and_sorted(): void
     {
         $viewer = $this->userWithRole(Role::Viewer);
-        Company::factory()->create(['name' => 'Initech']);
-        Company::factory()->create(['name' => 'Umbrella Corp']);
+        Company::factory()->create(['name' => 'Initech', 'industry' => 'Software']);
+        Company::factory()->create(['name' => 'Umbrella Corp', 'industry' => 'Pharma']);
+        Company::factory()->create(['name' => 'Aperture', 'industry' => 'Software']);
 
-        Livewire::actingAs($viewer)
-            ->test('pages::companies.index')
-            ->set('search', 'Initech')
-            ->assertSee('Initech')
-            ->assertDontSee('Umbrella Corp');
+        $this->actingAs($viewer);
+
+        $this->get(route('companies.index', ['search' => 'Initech']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('companies.data', 1)
+                ->where('companies.data.0.name', 'Initech')
+                ->where('filters.search', 'Initech'),
+            );
+
+        $this->get(route('companies.index', ['industry' => 'Software', 'sortBy' => 'name', 'sortDirection' => 'desc']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('companies.data', 2)
+                ->where('companies.data.0.name', 'Initech')
+                ->where('companies.data.1.name', 'Aperture')
+                ->where('industries', ['Pharma', 'Software']),
+            );
+
+        // Unknown sort columns fall back to the default instead of reaching the query.
+        $this->get(route('companies.index', ['sortBy' => 'password']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('filters.sortBy', 'name'));
+    }
+
+    public function test_only_mine_shows_records_the_user_owns(): void
+    {
+        $sales = $this->userWithRole(Role::Sales);
+        Company::factory()->for($sales, 'owner')->create(['name' => 'Mine']);
+        Company::factory()->create(['name' => 'Not mine']);
+
+        $this->actingAs($sales)
+            ->get(route('companies.index', ['mine' => 1]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('companies.data', 1)
+                ->where('companies.data.0.name', 'Mine')
+                ->where('companies.data.0.can', ['update' => true, 'delete' => true]),
+            );
     }
 
     public function test_changes_are_recorded_in_the_activity_log(): void

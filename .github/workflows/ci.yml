@@ -66,10 +66,14 @@ jobs:
       - name: Static analysis
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
+      # The Wayfinder Vite plugin runs `php artisan wayfinder:generate` during the build.
       - name: Build frontend
         run: |
           npm ci
           npm run build
+
+      - name: Check TypeScript
+        run: npm run types:check
 
       - name: Run tests (MySQL)
         env:

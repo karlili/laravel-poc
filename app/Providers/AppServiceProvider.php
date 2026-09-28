@@ -9,6 +9,7 @@ use App\Models\Note;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -57,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
             'contact' => Contact::class,
             'note' => Note::class,
         ]);
+
+        // Inertia props are resources; don't nest each one under "data".
+        JsonResource::withoutWrapping();
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
