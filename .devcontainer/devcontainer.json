@@ -14,7 +14,10 @@
 				"anthropic.claude-code"
 			]
 		}
-	}
+	},
+	// App (docker-compose APP_PORT) and the Vite dev server (VITE_PORT); the browser
+	// loads CSS/JS straight from Vite, so both must be forwarded.
+	"forwardPorts": [8000, 5173]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
